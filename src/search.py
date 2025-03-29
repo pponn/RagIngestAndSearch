@@ -7,11 +7,15 @@ from redis.commands.search.query import Query
 from redis.commands.search.field import VectorField, TextField
 
 
-# Initialize models
-# embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-redis_client = redis.StrictRedis(host="localhost", port=6380, decode_responses=True)
 
-VECTOR_DIM = 768
+# Initialize models
+embedding_model2 = SentenceTransformer("all-MiniLM-L6-v2")
+embedding_model3 = SentenceTransformer("all-mpnet-base-v2")
+
+redis_client = redis.StrictRedis(host="localhost", port=6379, decode_responses=True)
+
+#Vector_Dim for embedding_model1 (default) = 768, embedding_model2 = 384, embedding_model3 = 768
+VECTOR_DIM = 768 
 INDEX_NAME = "embedding_index"
 DOC_PREFIX = "doc:"
 DISTANCE_METRIC = "COSINE"
@@ -21,10 +25,20 @@ DISTANCE_METRIC = "COSINE"
 #     return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
 
+# Generate an embedding using nomic-embed-text
 def get_embedding(text: str, model: str = "nomic-embed-text") -> list:
-
     response = ollama.embeddings(model=model, prompt=text)
     return response["embedding"]
+
+# Generate an embedding using SentenceTransformer("all-MiniLM-L6-v2")
+def get_embedding2(text: str) -> list:
+    response = embedding_model2.encode(text)
+    return response.tolist()
+
+# Generate an embedding using SentenceTransformer("all-mpnet-base-v2")
+def get_embedding3(text: str) -> list:
+    response = embedding_model3.encode(text)
+    return response.tolist()
 
 
 def search_embeddings(query, top_k=3):
