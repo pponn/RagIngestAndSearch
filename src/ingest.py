@@ -4,7 +4,9 @@ import ollama
 import redis
 import chromadb 
 import faiss 
+import torch
 import numpy as np
+from sentence_transformers import SentenceTransformer
 from redis.commands.search.query import Query
 import os
 import fitz
@@ -26,10 +28,16 @@ class FAISSManager:
         D, I = self.index.search(np.array([embedding], dtype=np.float32), k)
         return [(self.keys[i], D[0][idx]) for idx, i in enumerate(I[0]) if i != -1]
 
-VECTOR_DIM = 768
+
+#Vector_Dim for embedding_model1 (default) = 768, embedding_model2 = 384, embedding_model3 = 768
+VECTOR_DIM = 768 
 INDEX_NAME = "embedding_index"
 DOC_PREFIX = "doc:"
 DISTANCE_METRIC = "COSINE"
+
+#Initialize embedding models
+embedding_model2 = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+embedding_model3 = SentenceTransformer("all-mpnet-base-v2")
 
 # Initialize Redis connection
 redis_client = redis.Redis(host="localhost", port=6379, db=0)
@@ -37,7 +45,7 @@ redis_client = redis.Redis(host="localhost", port=6379, db=0)
 # Initialize ChromaDB client
 chroma_client = chromadb.HttpClient(host="localhost", port=8000)
 chroma_collection = chroma_client.get_or_create_collection(name="pdf_embeddings")
-print(chroma_client.list_collections())
+
 
 # Initialize FAISS index
 faiss_index = FAISSManager(VECTOR_DIM)
@@ -74,9 +82,18 @@ def create_hnsw_index():
 
 # Generate an embedding using nomic-embed-text
 def get_embedding(text: str, model: str = "nomic-embed-text") -> list:
-
     response = ollama.embeddings(model=model, prompt=text)
     return response["embedding"]
+
+# Generate an embedding using SentenceTransformer("all-MiniLM-L6-v2")
+def get_embedding2(text: str) -> list:
+    response = embedding_model2.encode(text)
+    return response.tolist()
+
+# Generate an embedding using SentenceTransformer("all-mpnet-base-v2")
+def get_embedding3(text: str) -> list:
+    response = embedding_model3.encode(text)
+    return response.tolist()
 
 
 # store the embedding in Redis
@@ -195,7 +212,7 @@ def process_pdfs(data_dir):
                 
                 for chunk_index, chunk in enumerate(chunks):
                     # embedding = calculate_embedding(chunk)
-                    embedding = get_embedding(chunk)  
+                    embedding = get_embedding3(chunk)  
                     store_embedding(
                         file=file_name,
                         page=str(page_num),
@@ -206,7 +223,7 @@ def process_pdfs(data_dir):
                 
             print(f"-----> Processed {file_name} (Tables: {len(tables)})")
 
-
+"""""
 def query_redis(query_text: str):
 
     print("\n🔎 Querying Redis...")
@@ -236,16 +253,15 @@ def query_redis(query_text: str):
     chroma_results = chroma_collection.query(query_embeddings=[embedding], n_results=5)
     for doc_id, score in zip(chroma_results["ids"][0], chroma_results["distances"][0]):
         print(f"{doc_id} \n ----> Distance: {score}\n")
-
+"""
 
 def main():
     clear_stores()
     create_hnsw_index()
 
-    process_pdfs("/Users/lesrene/Desktop/DS4300/RagIngestAndSearch/data/ds4300 notes")
-    #process_pdfs("/Users/lesrene/Desktop/DS4300/RagIngestAndSearch/data/total_notes.pdf")
+    process_pdfs("/Users/pavithra/Downloads/RagIngestAndSearch-practical-02-pavi_lesrene_zainab/data/ds4300 notes")
     print("\n---Done processing PDFs---\n")
-    query_redis("What is the capital of France?")
+   # query_redis("What is the capital of France?")
 
 
 if __name__ == "__main__":
